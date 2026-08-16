@@ -1,0 +1,78 @@
+﻿@page "/AllOpenedJobs"
+@rendermode InteractiveServer
+@inject AppDbContext Db
+@using Microsoft.EntityFrameworkCore
+
+<PageTitle>All Opened Jobs</PageTitle>
+
+<h1>All Opened Jobs</h1>
+
+<p>@message</p>
+
+@if (jobs != null)
+{
+    <h3>Opened Jobs</h3>
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Job</th>
+                <th>Job Description</th>
+                <th>Status</th>
+                <th>Owner</th>
+                <th>Priority</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            @foreach (var item in jobs)
+            {
+                <tr>
+                    <td>@item.Job</td>
+                    <td>@item.JobDescription</td>
+                    <td>@item.Status</td>
+                    <td>@item.Owner</td>
+                    <td>@item.Priority</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private string message = "";
+
+    private List<Main>? jobs;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadJobs();
+    }
+
+    private async Task LoadJobs()
+    {
+        try
+        {
+            jobs = await Db.Main
+                .AsNoTracking()
+                .Where(x => x.Status != "Done")
+                .OrderBy(x => x.Job)
+                .Take(1000)
+                .Select(x => new Main
+                    {
+                        Job = x.Job ?? "",
+                        JobDescription = x.JobDescription ?? "",
+                        Status = x.Status ?? "",
+                        Owner = x.Owner ?? "",
+                        Priority = x.Priority ?? ""
+                    })
+                .ToListAsync();
+
+            message = $"Loaded {jobs.Count} opened jobs.";
+        }
+        catch (Exception ex)
+        {
+            message = ex.ToString();
+        }
+    }
+}

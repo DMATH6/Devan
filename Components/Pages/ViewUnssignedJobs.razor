@@ -1,0 +1,121 @@
+﻿@page "/ViewJobs"
+@rendermode InteractiveServer
+@inject AppDbContext Db
+@using Microsoft.EntityFrameworkCore
+
+<PageTitle>ViewJobs</PageTitle>
+
+<h1>Jobs</h1>
+
+<div>
+    <label>Status</label>
+
+    <select @bind="selectedStatus" @bind:after="LoadJobs">
+        <option value="">-- All Statuses --</option>
+        <option value="Not Started">Not Started</option>
+        <option value="In Progress">In Progress</option>
+        <option value="In Review">In Review</option>
+        <option value="Done">Done</option>
+    </select>
+</div>
+
+<br />
+
+<p>@message</p>
+
+@if (jobs != null)
+{
+    <h3>
+        @if (string.IsNullOrEmpty(selectedStatus))
+        {
+            <span>All Jobs</span>
+        }
+        else
+        {
+            <span>@selectedStatus Jobs</span>
+        }
+    </h3>
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Job</th>
+                <th>Job Description</th>
+                <th>Status</th>
+                <th>Owner</th>
+                <th>Priority</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            @foreach (var item in jobs)
+            {
+                <tr>
+                    <td>@item.Job</td>
+                    <td>@item.JobDescription</td>
+                    <td>@item.Status</td>
+                    <td>@item.Owner</td>
+                    <td>@item.Priority</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+
+    private string selectedStatus = "";
+
+    private string message = "";
+
+    private List<Main>? jobs;
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadJobs();
+    }
+
+
+    private async Task LoadJobs()
+    {
+        try
+        {
+            var query = Db.Main
+                .AsNoTracking()
+                .AsQueryable();
+
+
+
+            if (!string.IsNullOrEmpty(selectedStatus))
+            {
+                query = query.Where(x =>
+                    x.Status == selectedStatus);
+            }
+
+            query = query
+                .OrderBy(x =>
+                    x.Status == "Not Started" ? 1 :
+                    x.Status == "In Progress" ? 2 :
+                    x.Status == "In Review" ? 3 :
+                    x.Status == "Done" ? 4 :
+                    5)
+                .ThenBy(x => x.Job);
+
+
+
+
+            jobs = await query
+                .Take(1000)
+                .ToListAsync();
+
+
+            message =
+                $"Loaded {jobs.Count} records.";
+        }
+        catch (Exception ex)
+        {
+            message = ex.ToString();
+        }
+    }
+}

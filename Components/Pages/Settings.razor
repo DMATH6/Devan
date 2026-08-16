@@ -1,0 +1,185 @@
+﻿@page "/Settings"
+@rendermode InteractiveServer
+@inject AppDbContext Db
+@using Microsoft.EntityFrameworkCore
+
+<PageTitle>Settings</PageTitle>
+
+
+
+<div>
+    <label>AddJob</label>
+    <input @bind="job" placeholder="e.g. TEST001" />
+</div>
+
+<div>
+    <label>JobDescription</label>
+    <input @bind="JobDescription" placeholder="e.g. TEST001" />
+</div>
+<div>
+    <label>Status</label>
+    <select @bind="status">
+        <option value="">-- Select Status --</option>
+        <option value="Not Started">NotStarted</option>
+        <option value="In Progress">InProgress</option>
+        <option value="In Review">Review</option>
+        <option value="Done">Done</option>
+    </select>
+</div>
+
+<div>
+    <label>Owner</label>
+    <input @bind="owner" placeholder="e.g. Test User" />
+</div>
+
+<div>
+    <label>Priority</label>
+    <select @bind="priority">
+        <option value="">-- Select Priority --</option>
+        <option value="Low">Low</option>
+        <option value="Medium">Medium</option>
+        <option value="High">High</option>
+    </select>
+</div>
+
+<br />
+
+<button @onclick="InsertData">Add Job</button>
+<button @onclick="TestDatabase">Test Database</button>
+<button @onclick="LoadJobs">Load First 1000</button>
+
+<p>@message</p>
+
+@if (jobs != null)
+{
+    <h3>First 1000 Jobs</h3>
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Job</th>
+                <th>JobDescription</th>
+                <th>Status</th>
+                <th>Owner</th>
+                <th>Priority</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            @foreach (var item in jobs)
+            {
+                <tr>
+                    <td>@item.Job</td>
+                    <td>@item.JobDescription</td>
+                    <td>@item.Status</td>
+                    <td>@item.Owner</td>
+                    <td>@item.Priority</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private string job = "";
+    private string JobDescription = "";
+    private string status = "";
+    private string owner = "";
+    private string priority = "";
+
+    private string message = "";
+
+    private List<Main>? jobs;
+
+    private async Task TestDatabase()
+    {
+        try
+        {
+            if (await Db.Database.CanConnectAsync())
+            {
+                message = "Database connection successful!";
+            }
+            else
+            {
+                message = "Could not connect to the database.";
+            }
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+        }
+    }
+
+    private async Task InsertData()
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(job) ||
+                string.IsNullOrWhiteSpace(JobDescription) ||
+                string.IsNullOrWhiteSpace(status) ||
+                string.IsNullOrWhiteSpace(owner) ||
+                string.IsNullOrWhiteSpace(priority))
+            {
+                message = "Please fill in all fields.";
+                return;
+            }
+
+            var validPriorities = new[] { "Low", "Medium", "High" };
+
+            if (!validPriorities.Contains(priority, StringComparer.OrdinalIgnoreCase))
+            {
+                message = "Priority must be Low, Medium, or High.";
+                return;
+            }
+
+            var existingAccount = Db.Account
+                .FirstOrDefault(a => a.AccountName == owner);
+
+            if (existingAccount == null)
+            {
+                message = $"Account '{owner}' does not exist.";
+                return;
+            }
+            var newJob = new Main
+                {
+                    Job = job,
+                    JobDescription = JobDescription,
+                    Status = status,
+                    Owner = owner,
+                    Priority = priority
+                };
+
+            Db.Main.Add(newJob);
+
+            await Db.SaveChangesAsync();
+
+            message = "Job successfully added!";
+
+            job = "";
+            status = "";
+            owner = "";
+            priority = "";
+        }
+        catch (Exception ex)
+        {
+            message = ex.ToString();
+        }
+    }
+
+    private async Task LoadJobs()
+    {
+        try
+        {
+            jobs = await Db.Main
+                .AsNoTracking()
+                .Take(1000)
+                .ToListAsync();
+
+            message = $"Loaded {jobs.Count} records.";
+        }
+        catch (Exception ex)
+        {
+            message = ex.ToString();
+        }
+    }
+}

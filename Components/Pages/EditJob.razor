@@ -1,0 +1,560 @@
+﻿@page "/EditJob"
+@rendermode InteractiveServer
+@inject AppDbContext Db
+@using Microsoft.EntityFrameworkCore
+
+<PageTitle>Edit Job</PageTitle>
+
+<h1>Edit Job</h1>
+
+@if (selectedJob != null)
+{
+    <h3>Edit: @selectedJob.Job</h3>
+
+    <div>
+        <label>Job</label>
+        <input @bind="job" readonly />
+    </div>
+
+    <div>
+        <label>Job Description</label>
+        <input @bind="JobDescription" />
+    </div>
+
+    <div>
+        <label>Status</label>
+        <select @bind="status">
+            <option value="">-- Select Status --</option>
+            <option value="Not Started">Not Started</option>
+            <option value="In Progress">In Progress</option>
+            <option value="In Review">In Review</option>
+            <option value="Done">Done</option>
+        </select>
+    </div>
+
+    <div>
+        <label>Owner</label>
+        <input @bind="owner" />
+    </div>
+
+    <div>
+        <label>Priority</label>
+        <select @bind="priority">
+            <option value="">-- Select Priority --</option>
+            <option value="Low">Low</option>
+            <option value="Medium">Medium</option>
+            <option value="High">High</option>
+        </select>
+    </div>
+
+    <br />
+
+    <button @onclick="SaveChanges">
+        Save Changes
+    </button>
+
+    <button @onclick="ConfirmDelete">
+        Delete Job
+    </button>
+
+    <button @onclick="CancelEdit">
+        Cancel
+    </button>
+
+    <br />
+    <br />
+
+    @* Delete confirmation *@
+    @if (showDeleteConfirmation)
+    {
+        <div>
+            <p>
+                Are you sure you want to delete
+                <strong>@job</strong>?
+            </p>
+
+            <button @onclick="DeleteJob">
+                Yes, Delete
+            </button>
+
+            <button @onclick="CancelDelete">
+                Cancel
+            </button>
+        </div>
+
+        <br />
+    }
+}
+
+<p>@message</p>
+
+<hr />
+
+<h3>Jobs</h3>
+
+@if (jobs == null)
+{
+    <p>Loading jobs...</p>
+}
+else if (jobs.Count == 0)
+{
+    <p>No jobs found.</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Job</th>
+                <th>Job Description</th>
+                <th>Status</th>
+                <th>Owner</th>
+                <th>Priority</th>
+                <th></th>
+            </tr>
+        </thead>
+
+        <tbody>
+            @foreach (var item in jobs)
+            {
+                <tr>
+                    <td>@item.Job</td>
+
+                    <td>@item.JobDescription</td>
+
+                    <td>@item.Status</td>
+
+                    <td>@item.Owner</td>
+
+                    <td>@item.Priority</td>
+
+                    <td>
+                        <button @onclick="() => EditTheJob(item)">
+                            Edit
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+
+    // =========================================================
+    // FORM FIELDS
+    // =========================================================
+
+    private string job = "";
+
+    private string JobDescription = "";
+
+    private string status = "";
+
+    private string owner = "";
+
+    private string priority = "";
+
+    private string message = "";
+
+
+    // =========================================================
+    // JOB LIST
+    // =========================================================
+
+    private List<JobListItem>? jobs;
+
+    private Main? selectedJob;
+
+
+    // =========================================================
+    // DELETE CONFIRMATION
+    // =========================================================
+
+    private bool showDeleteConfirmation = false;
+
+
+    // =========================================================
+    // LIGHTWEIGHT JOB LIST CLASS
+    // =========================================================
+
+    private class JobListItem
+    {
+        public string Job { get; set; } = "";
+
+        public string JobDescription { get; set; } = "";
+
+        public string Status { get; set; } = "";
+
+        public string Owner { get; set; } = "";
+
+        public string Priority { get; set; } = "";
+    }
+
+
+    // =========================================================
+    // PAGE LOAD
+    // =========================================================
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadJobs();
+    }
+
+
+    // =========================================================
+    // LOAD JOBS
+    // =========================================================
+
+    private async Task LoadJobs()
+    {
+        try
+        {
+            jobs = await Db.Main
+                .AsNoTracking()
+
+                // Ignore records with NULL values
+                .Where(x =>
+                    x.Job != null &&
+                    x.JobDescription != null &&
+                    x.Status != null &&
+                    x.Owner != null &&
+                    x.Priority != null)
+
+                .OrderBy(x => x.Job)
+
+                // First 1000 records
+                .Take(1000)
+
+                // Only retrieve the fields this page needs
+                .Select(x => new JobListItem
+                    {
+                        Job = x.Job!,
+
+                        JobDescription = x.JobDescription!,
+
+                        Status = x.Status!,
+
+                        Owner = x.Owner!,
+
+                        Priority = x.Priority!
+                    })
+
+                .ToListAsync();
+
+            message = $"Loaded {jobs.Count} jobs.";
+        }
+        catch (Exception ex)
+        {
+            message = ex.ToString();
+        }
+    }
+
+
+    // =========================================================
+    // SELECT JOB
+    // =========================================================
+
+    private async Task EditTheJob(JobListItem item)
+    {
+        try
+        {
+            selectedJob = await Db.Main
+                .FirstOrDefaultAsync(x => x.Job == item.Job);
+
+            if (selectedJob == null)
+            {
+                message =
+                    $"Job '{item.Job}' could not be found.";
+
+                return;
+            }
+
+
+            // Load database values into the form
+
+            job = selectedJob.Job ?? "";
+
+            JobDescription =
+                selectedJob.JobDescription ?? "";
+
+            status =
+                selectedJob.Status ?? "";
+
+            owner =
+                selectedJob.Owner ?? "";
+
+            priority =
+                selectedJob.Priority ?? "";
+
+
+            // Hide delete confirmation
+
+            showDeleteConfirmation = false;
+
+
+            message =
+                $"Editing job '{job}'.";
+        }
+        catch (Exception ex)
+        {
+            message = ex.ToString();
+        }
+    }
+
+
+    // =========================================================
+    // SAVE CHANGES
+    // =========================================================
+
+    private async Task SaveChanges()
+    {
+        try
+        {
+            if (selectedJob == null)
+            {
+                message = "Please select a job first.";
+                return;
+            }
+
+
+            // -------------------------------------------------
+            // Required fields
+            // -------------------------------------------------
+
+            if (string.IsNullOrWhiteSpace(JobDescription) ||
+                string.IsNullOrWhiteSpace(status) ||
+                string.IsNullOrWhiteSpace(owner) ||
+                string.IsNullOrWhiteSpace(priority))
+            {
+                message = "Please fill in all fields.";
+                return;
+            }
+
+
+            // -------------------------------------------------
+            // Validate priority
+            // -------------------------------------------------
+
+            var validPriorities = new[]
+            {
+                "Low",
+                "Medium",
+                "High"
+            };
+
+            if (!validPriorities.Contains(
+                    priority,
+                    StringComparer.OrdinalIgnoreCase))
+            {
+                message =
+                    "Priority must be Low, Medium, or High.";
+
+                return;
+            }
+
+
+            // -------------------------------------------------
+            // Validate owner
+            // -------------------------------------------------
+
+            var existingAccount =
+                await Db.Account
+                    .FirstOrDefaultAsync(
+                        a => a.AccountName == owner);
+
+            if (existingAccount == null)
+            {
+                message =
+                    $"Account '{owner}' does not exist.";
+
+                return;
+            }
+
+
+            // -------------------------------------------------
+            // Update existing record
+            //
+            // IMPORTANT:
+            // Job is the primary key.
+            //
+            // We DO NOT change selectedJob.Job.
+            // -------------------------------------------------
+
+            selectedJob.JobDescription =
+                JobDescription;
+
+            selectedJob.Status =
+                status;
+
+            selectedJob.Owner =
+                owner;
+
+            selectedJob.Priority =
+                priority;
+
+
+            // -------------------------------------------------
+            // Save
+            // -------------------------------------------------
+
+            await Db.SaveChangesAsync();
+
+
+            message =
+                $"Job '{selectedJob.Job}' successfully updated!";
+
+
+            // -------------------------------------------------
+            // Refresh table
+            // -------------------------------------------------
+
+            await LoadJobs();
+
+
+            // -------------------------------------------------
+            // Close edit mode
+            // -------------------------------------------------
+
+            selectedJob = null;
+
+            job = "";
+
+            JobDescription = "";
+
+            status = "";
+
+            owner = "";
+
+            priority = "";
+
+            showDeleteConfirmation = false;
+        }
+        catch (Exception ex)
+        {
+            message = ex.ToString();
+        }
+    }
+
+
+    // =========================================================
+    // SHOW DELETE CONFIRMATION
+    // =========================================================
+
+    private void ConfirmDelete()
+    {
+        if (selectedJob == null)
+        {
+            message = "Please select a job first.";
+            return;
+        }
+
+        showDeleteConfirmation = true;
+
+        message = "";
+    }
+
+
+    // =========================================================
+    // DELETE JOB
+    // =========================================================
+
+    private async Task DeleteJob()
+    {
+        try
+        {
+            if (selectedJob == null)
+            {
+                message = "Please select a job first.";
+                return;
+            }
+
+
+            // Save the name before removing it
+
+            var deletedJob = selectedJob.Job;
+
+
+            // Remove the record
+
+            Db.Main.Remove(selectedJob);
+
+
+            // Save deletion
+
+            await Db.SaveChangesAsync();
+
+
+            // Clear selected job
+
+            selectedJob = null;
+
+
+            // Clear form
+
+            job = "";
+
+            JobDescription = "";
+
+            status = "";
+
+            owner = "";
+
+            priority = "";
+
+
+            // Hide confirmation
+
+            showDeleteConfirmation = false;
+
+
+            // Refresh list
+
+            await LoadJobs();
+
+
+            message =
+                $"Job '{deletedJob}' successfully deleted.";
+        }
+        catch (Exception ex)
+        {
+            message = ex.ToString();
+        }
+    }
+
+
+    // =========================================================
+    // CANCEL DELETE
+    // =========================================================
+
+    private void CancelDelete()
+    {
+        showDeleteConfirmation = false;
+
+        message = "Delete cancelled.";
+    }
+
+
+    // =========================================================
+    // CANCEL EDIT
+    // =========================================================
+
+    private void CancelEdit()
+    {
+        selectedJob = null;
+
+        job = "";
+
+        JobDescription = "";
+
+        status = "";
+
+        owner = "";
+
+        priority = "";
+
+        showDeleteConfirmation = false;
+
+        message = "";
+    }
+}
