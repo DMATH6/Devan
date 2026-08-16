@@ -1,2 +1,3 @@
 # Local development configuration
 appsettings.Development.json
+.vs/
